@@ -10,8 +10,9 @@ function XXLNumber(value_, usedNotation_, name_) {
 	this._integer = [0];
 	this._fraction = [0];
 	this._isNegative = false;
-	this._isZero = false;
-
+	this._isZero = true;
+	this._isOne = false;
+	this._isInteger = true;
 }
 
 
@@ -323,6 +324,14 @@ XXLNumber.prototype = {
 		//return this.usedNotation['to decimal integer'](q,w);
 		return x
 	},
+	
+	
+	// Перевод числа в другую систему счисления
+	
+	toAnotherNotation: function(anotherNotation) {
+		
+		return this;
+	},
 
 		
 		// Подготовка числа к математическим операциям
@@ -489,13 +498,13 @@ XXLNumber.prototype = {
 		denominator.unshift(1);
 		
 		while (numerator[numerator.length - 1] % 5 == 0 && denominator[denominator.length - 1] % 5 == 0) {
-			numerator = XXLMath._divideInteger(numerator, [5])._integer;
-			denominator = XXLMath._divideInteger(denominator, [5])._integer;
+			numerator = XXLMath._divideInteger(numerator, [5]).integer;
+			denominator = XXLMath._divideInteger(denominator, [5]).integer;
 		}
 		
 		while (numerator[numerator.length - 1] % 2 == 0 && denominator[denominator.length - 1] % 2 == 0) {
-			numerator = XXLMath._divideInteger(numerator, [2])._integer;
-			denominator = XXLMath._divideInteger(denominator, [2])._integer;
+			numerator = XXLMath._divideInteger(numerator, [2]).integer;
+			denominator = XXLMath._divideInteger(denominator, [2]).integer;
 		}
 		
 		var numeratorOfImproperFraction = XXLMath._sumInteger(numerator,
@@ -503,15 +512,19 @@ XXLNumber.prototype = {
 		
 		var a = new XXLNumber(0, this.usedNotation);
 a._integer = this._integer;
+XXLMath._removeStartZero(a._integer)
 		
 		var b = new XXLNumber(0, this.usedNotation);
 b._integer = numerator;
+XXLMath._removeStartZero(b._integer)
 		
 		var c = new XXLNumber(0, this.usedNotation);
 c._integer = denominator;
+XXLMath._removeStartZero(c._integer)		
 		
 		var d = new XXLNumber(0, this.usedNotation);
 d._integer = numeratorOfImproperFraction;
+XXLMath._removeStartZero(d._integer)
 		
 		return {'integer': a, 'numerator': b, 'denominator': c, 'numerator of improper fraction': d};
 	},
@@ -1129,11 +1142,13 @@ result._setSeparator(x._fraction.length + y._fraction.length);
 	divide: function(x, y, precision_ = 10, usedNotation_) {
 x._shiftSeparatorRight(y._fraction.length);
 y._removeSeparator();
+
+		var specialCase = this._specialCasesOfDivision(x, y);
 		
-		if (this._specialCasesOfDivision(x, y) != undefined) {
-			return this._specialCasesOfDivision(x, y);
+		if (specialCase != undefined) {
+			return specialCase;
 		}
-		
+	
 		var result = new XXLNumber(0, usedNotation_);
 		this._setSign(x, y, result);
 		
@@ -1158,9 +1173,11 @@ y._removeSeparator();
 	incompleteQuotient: function(x, y, precision_ = 0, usedNotation_) {
 x._shiftSeparatorRight(y._fraction.length);
 y._removeSeparator();
+
+		var specialCase = this._specialCasesOfDivision(x, y);
 		
-		if (this._specialCasesOfDivision(x, y) != undefined) {
-			return this._specialCasesOfDivision(x, y);
+		if (specialCase != undefined) {
+			return specialCase;
 		}
 		
 		var result = new XXLNumber(0, usedNotation_);
@@ -1294,71 +1311,104 @@ y._removeSeparator();
 	// Возведение в степень
 
 	pow: function(x, y, precision_, usedNotation_) {
+		var specialCase = this._specialCasesOfPow(x, y, usedNotation_);
 		
-		
-		//if (exp.length == 1 && exp[0] == 0 && result.length == 1 && result[0] == 0) {
-			//result = 'Ноль в нулевой степени не определён';
-			//return result;
-		//}
-		
-		//if (exp.length == 1 && exp[0] == 0) {
-			//result = [1];
-			//return result;
-		//}
-		
-		//if (exp.length == 1 && exp[0] == 1) {
-			//return result;
-		//}
-		
-		
-		
+		if (specialCase != undefined) {
+			return specialCase;
+		}
 		
 		var result = new XXLNumber(0, usedNotation_);
 		
-			
-		
-		//var simpleFraction = toSimpleFraction(y);
-		
-		//var a = _toThePowerOfInteger(x, y._integer);
-		
-		//var b = _toThePowerOfInteger(x, simpleFraction.numerator);
-		
-		
-		//var c = this.root(a, simpleFraction.denominator);
-		
-		
-		//result = this.multiply(a, c);
-		
-			
-		if (y.isInteger) {
-			result = this._toThePowerOfInteger();
+		if (result.isExponentialNotation(precision_)) {
+			var tempPrecision = 0;
 		}
 		else {
-			result = this.root();
+			var tempPrecision = result._getPrecision(precision_);
 		}
 		
-		//if (y._isNegative) {
-			//var one = new XXLNumber();
-			//one._integer = [1];
-			//return this.divide(one,result);
-		//}
+		if (!y._isNegative && y._isInteger) { 
+			result = this._toThePowerOfInteger(x, y, usedNotation_);
+		}
+		else if (!y._isNegative && !y._isInteger) { 
+			result =  this._toThePowerOfFraction(x, y, tempPrecision, usedNotation_);
+		}
+		else if (y._isNegative && y._isInteger) { 
+			result = this._toThePowerOfNegativeInteger(x, y, precision_, usedNotation_);
+		}
+		else if (y._isNegative && !y._isInteger) { 
+			result = this._toThePowerOfNegativeFraction(x, y, tempPrecision, usedNotation_); 
+		}
+		
+		result.round(precision_);
 		
 		return result;
 	},
 	
 	
-	// Возведение в целую степень
+	// Частные случаи возведения в степень
 	
-	_toThePowerOfInteger: function(x, y) {
+	_specialCasesOfPow: function(x, y, usedNotation) {
+		if (y._isZero) {
+			return new XXLNumber(1, undefined, one).toAnotherNotation(usedNotation);
+		}
+		
+		if (x._isZero && !x._isNegative && !y._isNegative) {
+			return new XXLNumber(0, undefined, zero).toAnotherNotation(usedNotation);
+		}
+		
+		if (x._isZero && x._isNegative && !x._isInteger && !y._isNegative) {
+			return new XXLNumber(0, undefined, zero).toAnotherNotation(usedNotation);
+		}
+		
+	},
+	
+	
+	// Возведение в степень с целым положительным показателем
+	
+	_toThePowerOfInteger: function(x, y, usedNotation_) {
 		var result = x;
 		var tempExponent = [1];
 		
 		while (this._compareInteger(y._integer, tempExponent) == 1) {
-			result = this.multiply(x, result);
+			result = this.multiply(x, result, undefined, usedNotation_);
 			tempExponent = this._sumInteger(tempExponent, [1], 0);
 		}
 		
 		return result;
+	},
+	
+	
+	// Возведение в степень с целым отрицательным показателем
+	
+	_toThePowerOfNegativeInteger: function(x, y, precision, usedNotation_) {
+		var one = new XXLNumber(1);
+one._integer = [1];
+		var denominator = this._toThePowerOfInteger(x, y, usedNotation_)
+		
+		return this.divide(one, denominator, precision, usedNotation_);
+	},
+	
+	
+	// Возведение в степень с дробным положительным показателем
+	
+	_toThePowerOfFraction: function(x, y, tempPrecision, usedNotation_) {
+		var simpleFraction = y.toSimpleFraction();
+		var firstMultiplier = this._toThePowerOfInteger(x, simpleFraction.integer, usedNotation_);
+		var secondMultiplier = this._toThePowerOfInteger(x, simpleFraction.numerator);
+		secondMultiplier = this.root(secondMultiplier, simpleFraction.denominator, tempPrecision + firstMultiplier._integer.length);
+		
+		return this.multiply(firstMultiplier, secondMultiplier, tempPrecision);
+	},
+	
+	
+	// Возведение в степень с дробным отрицательным показателем
+	
+	_toThePowerOfNegativeFraction: function(x, y, tempPrecision, usedNotation_) {
+		var one = new XXLNumber(1);
+one._integer = [1];
+		var denominator = this._toThePowerOfFraction(x, y, tempPrecision, usedNotation_);
+		
+		return this.divide(one, denominator, tempPrecision, usedNotation_);
 	},
 	
 	
